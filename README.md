@@ -49,11 +49,12 @@ cp .env.example .env          # fill in secrets
 
 ### Job sources (`boards` in config.yaml)
 
-| Type   | Board            | Notes                                                                                                                                                        |
-| ------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `reed` | Reed.co.uk API   | **Primary.** Free key at [reed.co.uk/developers](https://www.reed.co.uk/developers) → `REED_API_KEY`. Clean JSON, no bot detection.                          |
-| `rss`  | JobServe (et al) | Save a search on jobserve.com, click the RSS icon on the results page, paste the feed URL.                                                                   |
-| `html` | Anything else    | Playwright scraping. Boards with aggressive bot protection (CWJobs/Totaljobs) reset headless connections (`ERR_HTTP2_PROTOCOL_ERROR`) — prefer `reed`/`rss`. |
+| Type     | Board            | Notes                                                                                                                                                                    |
+| -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `reed`   | Reed.co.uk API   | **Primary.** Free key at [reed.co.uk/developers](https://www.reed.co.uk/developers) → `REED_API_KEY`. Clean JSON, no bot detection.                                      |
+| `adzuna` | Adzuna API       | Aggregates many UK boards **including Totaljobs/CWJobs content**. Free key at [developer.adzuna.com](https://developer.adzuna.com) → `ADZUNA_APP_ID` + `ADZUNA_APP_KEY`. |
+| `rss`    | JobServe (et al) | Save a search on jobserve.com, click the RSS icon on the results page, paste the feed URL.                                                                               |
+| `html`   | Anything else    | Playwright scraping. Boards with aggressive bot protection (CWJobs/Totaljobs) reset headless connections (`ERR_HTTP2_PROTOCOL_ERROR`) — prefer the API/RSS types.        |
 
 Example Dataview query for a pipeline dashboard note:
 
@@ -105,7 +106,8 @@ Two workflows under `.github/workflows/`:
 Setup:
 
 1. **Secrets** (_Settings → Secrets and variables → Actions → Secrets_):
-   `GEMINI_API_KEY`, `REED_API_KEY`, `DISCORD_WEBHOOK_URL`, `NOTION_API_KEY`, and for
+   `GEMINI_API_KEY`, `REED_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`,
+   `DISCORD_WEBHOOK_URL`, `NOTION_API_KEY`, and for
    auto mode `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_BCC`.
 2. **Variables** (same page, _Variables_ tab): `APPLY_MODE` = `alert` | `draft` |
    `auto` (defaults to `draft` if unset), plus `NOTION_DATABASE_ID` or

@@ -96,6 +96,28 @@ boards:
     params:
       contract: "true" # contract roles only; remote/IR35 enforced by the evaluator
 
+  # Adzuna aggregator API — free key at https://developer.adzuna.com. Plain JSON,
+  # no bot detection; aggregates many UK boards INCLUDING Totaljobs/CWJobs content.
+  # Needs env ADZUNA_APP_ID + ADZUNA_APP_KEY; skipped if unset.
+  - name: adzuna
+    type: adzuna
+    country: gb
+    pages: 2 # 50 results per page per query
+    queries:
+      - devops engineer
+      - platform engineer
+      - cloud engineer
+      - site reliability engineer
+      - devsecops engineer
+      - cloud security engineer
+      - finops engineer
+    params:
+      contract: 1 # contract roles only; remote/IR35 enforced by the evaluator
+      max_days_old: 7 # ignore stale listings/reposts
+      sort_by: date
+    selectors: # detail pages open via Playwright; Adzuna's own ad pages use adp-body
+      description: "section[class*='adp'], [class*='job-description'], [class*='jobDescription'], main"
+
   # JobServe saved-search RSS feed — reliable, no browser needed for the list.
   # Build your search on jobserve.com, save it, click the RSS icon on the
   # results page, and paste that feed URL here.

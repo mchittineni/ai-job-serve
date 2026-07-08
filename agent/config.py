@@ -75,6 +75,14 @@ class Config:
     def reed_api_key(self) -> str | None:
         return os.getenv("REED_API_KEY")
 
+    @property
+    def adzuna_app_id(self) -> str | None:
+        return os.getenv("ADZUNA_APP_ID")
+
+    @property
+    def adzuna_app_key(self) -> str | None:
+        return os.getenv("ADZUNA_APP_KEY")
+
     # --- Gemini ---
     @property
     def gemini_api_key(self) -> str | None:

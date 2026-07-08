@@ -1,11 +1,14 @@
-"""Job sources. Three board types, set per-board in config.yaml:
+"""Job sources. Four board types, set per-board in config.yaml:
 
-type: reed  — Reed.co.uk jobseeker API (free key). Most reliable: plain JSON,
-              no bot detection. Needs REED_API_KEY.
-type: rss   — any RSS feed (e.g. a JobServe saved-search feed). No browser
-              needed for the listing; detail pages still fetched via Playwright.
-type: html  — Playwright scraping (default). Boards behind aggressive bot
-              protection (CWJobs/Totaljobs) may reset connections regardless.
+type: reed   — Reed.co.uk jobseeker API (free key). Most reliable: plain JSON,
+               no bot detection. Needs REED_API_KEY.
+type: adzuna — Adzuna aggregator API (free key). Covers many UK boards,
+               including Totaljobs/CWJobs content, as plain JSON.
+               Needs ADZUNA_APP_ID + ADZUNA_APP_KEY.
+type: rss    — any RSS feed (e.g. a JobServe saved-search feed). No browser
+               needed for the listing; detail pages still fetched via Playwright.
+type: html   — Playwright scraping (default). Boards behind aggressive bot
+               protection (CWJobs/Totaljobs) may reset connections regardless.
 """
 
 import re
@@ -35,6 +38,7 @@ DEFAULT_SELECTORS = {
 
 MAX_DESCRIPTION_CHARS = 8000
 REED_API = "https://www.reed.co.uk/api/1.0"
+ADZUNA_API = "https://api.adzuna.com/v1/api/jobs"
 
 
 async def new_context(browser: Browser) -> BrowserContext:
@@ -204,6 +208,67 @@ async def _fetch_reed_description(job: Job, api_key: str) -> str:
         return ""
 
 
+# ---------- type: adzuna (API) ----------
+
+
+def _adzuna_rate(result: dict) -> str:
+    lo, hi = result.get("salary_min"), result.get("salary_max")
+    if lo and hi:
+        return f"{lo:,.0f}-{hi:,.0f} GBP"
+    if lo or hi:
+        return f"{(lo or hi):,.0f} GBP"
+    return "Not stated"
+
+
+async def scrape_adzuna(board: dict, app_id: str, app_key: str) -> list[Job]:
+    """Adzuna aggregator API: one search per query, paginated (50 results/page)."""
+    name = board.get("name", "adzuna")
+    country = board.get("country", "gb")
+    pages = int(board.get("pages", 1))
+    base_params = {
+        "app_id": app_id,
+        "app_key": app_key,
+        "results_per_page": 50,
+        **board.get("params", {}),
+    }
+    jobs: list[Job] = []
+    async with httpx.AsyncClient(timeout=30) as client:
+        for query in board.get("queries", []):
+            print(f"[scrape] {name} (api): {query!r}")
+            for page_no in range(1, pages + 1):
+                try:
+                    resp = await client.get(
+                        f"{ADZUNA_API}/{country}/search/{page_no}",
+                        params={**base_params, "what": query},
+                    )
+                    resp.raise_for_status()
+                    results = resp.json().get("results", [])
+                except (httpx.HTTPError, ValueError) as e:
+                    print(f"[scrape] {name} query {query!r} page {page_no} failed: {e}")
+                    break
+
+                for r in results:
+                    url = r.get("redirect_url")
+                    if not url:
+                        continue
+                    # snippets can carry <strong> highlight markup — strip it
+                    snippet = BeautifulSoup(r.get("description") or "", "html.parser")
+                    jobs.append(
+                        Job(
+                            title=r.get("title") or "Unknown Title",
+                            company=(r.get("company") or {}).get("display_name") or "Direct / Agency",
+                            rate=_adzuna_rate(r),
+                            url=url,
+                            source=name,
+                            snippet=snippet.get_text(" ", strip=True)[:1500],
+                        )
+                    )
+                if len(results) < base_params["results_per_page"]:
+                    break
+    print(f"[scrape] {name}: {len(jobs)} results")
+    return jobs
+
+
 # ---------- dispatch ----------
 
 
@@ -221,6 +286,11 @@ async def scrape_all(context: BrowserContext, cfg: Config) -> list[Job]:
                     jobs.extend(await scrape_reed(board, cfg.reed_api_key))
                 else:
                     print(f"[scrape] {board.get('name')}: skipped (REED_API_KEY not set)")
+            elif btype == "adzuna":
+                if cfg.adzuna_app_id and cfg.adzuna_app_key:
+                    jobs.extend(await scrape_adzuna(board, cfg.adzuna_app_id, cfg.adzuna_app_key))
+                else:
+                    print(f"[scrape] {board.get('name')}: skipped (ADZUNA_APP_ID/ADZUNA_APP_KEY not set)")
             elif btype == "rss":
                 jobs.extend(await scrape_rss(board))
             else:
