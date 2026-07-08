@@ -1,8 +1,7 @@
 name: Validate Project
 
+# PR status checks only — scheduled agent runs live on Railway (railway.json + start.sh)
 on:
-  push:
-    branches: [main]
   pull_request:
 
 jobs:

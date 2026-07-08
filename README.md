@@ -91,46 +91,47 @@ Tip: add a _Board_ view grouped by **Status** in Notion and you have a kanban of
 whole job search. Notion tracking is best-effort — if the API call fails the run
 continues, and the SQLite dedupe DB remains the agent's source of truth.
 
-## CI/CD & scheduled runs — GitHub Actions (primary)
+## Deployment — Railway (scheduled runs) + GitHub Actions (PR checks only)
 
-> ⚠️ **Keep this repository private.** The master resume, generated application
-> materials, and the state DB (all committed) contain personal contact details.
+> ⚠️ **Keep this repository private.** The master resume and config contain
+> personal contact details.
 
-Two workflows under `.github/workflows/`:
+**Railway runs the agent.** GitHub Actions only validates pull requests
+(`ci.yml`: pre-commit, compile, config/import smoke tests) — no scheduled runs,
+no state commits back to the repo.
 
-- **`ci.yml`** — on every push/PR: installs deps, compiles all modules, validates
-  `config.yaml`, and smoke-tests imports + the master resume.
-- **`job-agent.yml`** — runs the agent every 30 min on UK weekday work hours
-  (GitHub cron is UTC), and on demand via _Actions → Job Agent → Run workflow_,
-  where you can override the apply mode per run.
+How a Railway run works (`railway.json` + `start.sh`):
 
-Setup:
+1. The cron schedule (`*/30 7-18 * * 1-5`, UTC) starts the service; it runs
+   once and exits (`restartPolicyType: NEVER` — a failed run just waits for the
+   next tick instead of restart-looping).
+2. `start.sh` clones/pulls your **Obsidian vault** (a private git repo) onto the
+   volume and sets `OBSIDIAN_VAULT_PATH` — cloud runs get full vault grounding,
+   not just the master resume.
+3. All state lives on the attached volume (`DATA_DIR=/data`): the dedupe DB and
+   generated materials survive between runs.
+4. After the run, new application notes are committed and pushed back to the
+   vault repo — they show up in Obsidian on your next vault sync (obsidian-git).
 
-1. **Secrets** (_Settings → Secrets and variables → Actions → Secrets_):
-   `GEMINI_API_KEY`, `REED_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`,
-   `DISCORD_WEBHOOK_URL`, `NOTION_API_KEY`, and for
-   auto mode `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_BCC`.
-2. **Variables** (same page, _Variables_ tab): `APPLY_MODE` = `alert` | `draft` |
-   `auto` (defaults to `draft` if unset), plus `NOTION_DATABASE_ID` or
-   `NOTION_PARENT_PAGE_ID` for the Notion board.
-3. Push to `main`. Done — no server needed.
+Setup (one time):
 
-How state works on Actions: runners are ephemeral, so after each run the workflow
-**commits `data/` back to the repo** (`[skip ci]`) — that's the dedupe DB, generated
-resumes/cover letters, and application notes. Materials are also uploaded as a run
-artifact (14-day retention). A `concurrency` group stops overlapping runs from
-double-applying. Since the Actions runner has no Obsidian vault, cloud runs are
-grounded in `profile/master-resume.md` — keep it current (you can also drop extra
-fact files into `profile/` and reference them from the resume).
+1. Create a Railway project from this repo — it picks up `railway.json` and
+   `nixpacks.toml` automatically.
+2. Attach a **volume** to the service, mounted at `/data`.
+3. Set service variables: `DATA_DIR=/data`, `GEMINI_API_KEY`, `REED_API_KEY`,
+   `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `NOTION_API_KEY`, `NOTION_DATABASE_ID`
+   (or `NOTION_PARENT_PAGE_ID`), `DISCORD_WEBHOOK_URL`, `APPLY_MODE`, and for
+   auto mode the `SMTP_*` set.
+4. **Vault grounding**: keep your vault in a _private_ GitHub repo (the
+   obsidian-git plugin syncs it from your devices), create a fine-grained PAT
+   with contents read/write on that one repo, and set
+   `VAULT_REPO_URL=https://<pat>@github.com/<you>/<vault-repo>.git`.
+   Leave it unset to run vault-less (master resume only).
 
-For **full Obsidian-vault grounding**, run locally on a schedule (`launchd`/`cron`)
-with `OBSIDIAN_VAULT_PATH` set — local and Actions runs share the same committed
-`data/jobs.db`, so pull before local runs to avoid duplicate applications.
-
-### Alternative: Railway (optional)
-
-`railway.json` + `nixpacks.toml` are kept for a Railway cron deployment. If you use
-it, attach a volume and set `DATA_DIR=/data` so state survives deploys.
+Local runs stay the debugging path (`python job-connect.py` with `.env`), but
+don't run them in `auto` mode alongside the Railway cron: local `data/` and the
+Railway volume are **separate dedupe databases**, so the same job could be
+applied to twice.
 
 ## Environment variables
 
