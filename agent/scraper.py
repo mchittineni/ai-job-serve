@@ -1,8 +1,22 @@
+"""Job sources. Three board types, set per-board in config.yaml:
+
+type: reed  — Reed.co.uk jobseeker API (free key). Most reliable: plain JSON,
+              no bot detection. Needs REED_API_KEY.
+type: rss   — any RSS feed (e.g. a JobServe saved-search feed). No browser
+              needed for the listing; detail pages still fetched via Playwright.
+type: html  — Playwright scraping (default). Boards behind aggressive bot
+              protection (CWJobs/Totaljobs) may reset connections regardless.
+"""
+
+import re
+import xml.etree.ElementTree as ET
 from urllib.parse import urljoin
 
+import httpx
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, BrowserContext
 
+from .config import Config
 from .models import Job
 
 USER_AGENT = (
@@ -16,20 +30,28 @@ DEFAULT_SELECTORS = {
     "company": ".company-name, [class*='company'], [data-testid*='company']",
     "rate": ".salary, .job-salary, [class*='salary'], [class*='rate']",
     "link": "a[href*='/job/'], a[href*='/jobs/'], a[href*='JobDetail'], a[href]",
-    "description": "[class*='job-description'], [class*='jobDescription'], "
-    "[id*='description'], main, article",
+    "description": "[class*='job-description'], [class*='jobDescription'], [id*='description'], main, article",
 }
 
 MAX_DESCRIPTION_CHARS = 8000
+REED_API = "https://www.reed.co.uk/api/1.0"
 
 
 async def new_context(browser: Browser) -> BrowserContext:
-    return await browser.new_context(user_agent=USER_AGENT, viewport={"width": 1366, "height": 900})
+    return await browser.new_context(
+        user_agent=USER_AGENT,
+        viewport={"width": 1366, "height": 900},
+        locale="en-GB",
+        timezone_id="Europe/London",
+    )
 
 
 def _text(card, selector: str) -> str:
     el = card.select_one(selector)
     return el.get_text(strip=True) if el else ""
+
+
+# ---------- type: html (Playwright) ----------
 
 
 async def scrape_board(context: BrowserContext, board: dict) -> list[Job]:
@@ -76,11 +98,133 @@ async def scrape_board(context: BrowserContext, board: dict) -> list[Job]:
     return jobs
 
 
-async def scrape_all(context: BrowserContext, boards: list[dict]) -> list[Job]:
+# ---------- type: rss ----------
+
+
+async def scrape_rss(board: dict) -> list[Job]:
+    """Parse RSS 2.0 (or Atom) feeds — e.g. a JobServe saved-search feed."""
+    name = board.get("name", "rss")
     jobs: list[Job] = []
-    for board in boards:
+    async with httpx.AsyncClient(
+        timeout=30, follow_redirects=True, headers={"User-Agent": USER_AGENT}
+    ) as client:
+        for url in board.get("search_urls", []):
+            print(f"[scrape] {name} (rss): {url}")
+            try:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                root = ET.fromstring(resp.content)
+            except (httpx.HTTPError, ET.ParseError) as e:
+                print(f"[scrape] {name} feed failed: {e}")
+                continue
+
+            items = list(root.iter("item")) or list(root.iter("{http://www.w3.org/2005/Atom}entry"))
+            for item in items:
+                title = (item.findtext("title") or "").strip()
+                link = (item.findtext("link") or "").strip()
+                if not link:  # Atom puts the URL in <link href="...">
+                    link_el = item.find("{http://www.w3.org/2005/Atom}link")
+                    link = link_el.get("href", "") if link_el is not None else ""
+                if not link:
+                    continue
+                desc_html = item.findtext("description") or ""
+                snippet = BeautifulSoup(desc_html, "html.parser").get_text(" ", strip=True)
+                jobs.append(
+                    Job(
+                        title=title or "Unknown Title",
+                        company="See listing",
+                        rate="See listing",
+                        url=link,
+                        source=name,
+                        snippet=snippet[:1500],
+                    )
+                )
+    print(f"[scrape] {name}: {len(jobs)} feed items")
+    return jobs
+
+
+# ---------- type: reed (API) ----------
+
+
+def _reed_rate(result: dict) -> str:
+    lo, hi = result.get("minimumSalary"), result.get("maximumSalary")
+    cur = result.get("currency") or "GBP"
+    if lo and hi:
+        return f"{lo:,.0f}-{hi:,.0f} {cur}"
+    if lo or hi:
+        return f"{(lo or hi):,.0f} {cur}"
+    return "Not stated"
+
+
+async def scrape_reed(board: dict, api_key: str) -> list[Job]:
+    """Reed jobseeker API: one search per configured query, JSON results."""
+    name = board.get("name", "reed")
+    jobs: list[Job] = []
+    base_params = {"resultsToTake": 100, **board.get("params", {})}
+    async with httpx.AsyncClient(timeout=30, auth=(api_key, "")) as client:
+        for query in board.get("queries", []):
+            print(f"[scrape] {name} (api): {query!r}")
+            try:
+                resp = await client.get(f"{REED_API}/search", params={**base_params, "keywords": query})
+                resp.raise_for_status()
+                results = resp.json().get("results", [])
+            except (httpx.HTTPError, ValueError) as e:
+                print(f"[scrape] {name} query {query!r} failed: {e}")
+                continue
+
+            for r in results:
+                job_id = r.get("jobId")
+                jobs.append(
+                    Job(
+                        title=r.get("jobTitle") or "Unknown Title",
+                        company=r.get("employerName") or "Direct / Agency",
+                        rate=_reed_rate(r),
+                        url=r.get("jobUrl") or f"https://www.reed.co.uk/jobs/{job_id}",
+                        source=name,
+                        snippet=(r.get("jobDescription") or "")[:1500],
+                    )
+                )
+    print(f"[scrape] {name}: {len(jobs)} results")
+    return jobs
+
+
+async def _fetch_reed_description(job: Job, api_key: str) -> str:
+    """Full description via the Reed job-details endpoint (search results are truncated)."""
+    m = re.search(r"/(\d+)/?(?:[?#]|$)", job.url)
+    if not m:
+        return ""
+    try:
+        async with httpx.AsyncClient(timeout=30, auth=(api_key, "")) as client:
+            resp = await client.get(f"{REED_API}/jobs/{m.group(1)}")
+            resp.raise_for_status()
+            html = resp.json().get("jobDescription") or ""
+            return BeautifulSoup(html, "html.parser").get_text("\n", strip=True)[:MAX_DESCRIPTION_CHARS]
+    except (httpx.HTTPError, ValueError) as e:
+        print(f"[scrape] reed detail failed for {job.url}: {e}")
+        return ""
+
+
+# ---------- dispatch ----------
+
+
+def _board_for(job: Job, cfg: Config) -> dict:
+    return next((b for b in cfg.boards if b.get("name") == job.source), {})
+
+
+async def scrape_all(context: BrowserContext, cfg: Config) -> list[Job]:
+    jobs: list[Job] = []
+    for board in cfg.boards:
+        btype = board.get("type", "html")
         try:
-            jobs.extend(await scrape_board(context, board))
+            if btype == "reed":
+                if cfg.reed_api_key:
+                    jobs.extend(await scrape_reed(board, cfg.reed_api_key))
+                else:
+                    print(f"[scrape] {board.get('name')}: skipped (REED_API_KEY not set)")
+            elif btype == "rss":
+                jobs.extend(await scrape_rss(board))
+            else:
+                jobs.extend(await scrape_board(context, board))
         except Exception as e:
             print(f"[scrape] board {board.get('name')} errored: {e}")
     # de-dupe within the run
@@ -90,14 +234,13 @@ async def scrape_all(context: BrowserContext, boards: list[dict]) -> list[Job]:
     return list(unique.values())
 
 
-async def fetch_description(context: BrowserContext, job: Job, boards: list[dict]) -> str:
-    """Load the job's detail page and pull the full description text for evaluation/tailoring."""
-    selectors = DEFAULT_SELECTORS
-    for board in boards:
-        if board.get("name") == job.source:
-            selectors = {**DEFAULT_SELECTORS, **board.get("selectors", {})}
-            break
+async def fetch_description(context: BrowserContext, job: Job, cfg: Config) -> str:
+    """Full description for one job — API for Reed, Playwright for everything else."""
+    board = _board_for(job, cfg)
+    if board.get("type") == "reed" and cfg.reed_api_key:
+        return await _fetch_reed_description(job, cfg.reed_api_key)
 
+    selectors = {**DEFAULT_SELECTORS, **board.get("selectors", {})}
     page = await context.new_page()
     try:
         await page.goto(job.url, wait_until="domcontentloaded", timeout=45000)

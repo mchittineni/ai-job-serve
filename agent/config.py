@@ -70,6 +70,11 @@ class Config:
             or self.raw.get("agent", {}).get("max_applications_per_day", 10)
         )
 
+    # --- job sources ---
+    @property
+    def reed_api_key(self) -> str | None:
+        return os.getenv("REED_API_KEY")
+
     # --- Gemini ---
     @property
     def gemini_api_key(self) -> str | None:

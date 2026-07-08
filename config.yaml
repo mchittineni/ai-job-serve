@@ -79,35 +79,45 @@ obsidian:
   write_application_notes: true
 
 boards:
-  - name: cwjobs
-    base_url: https://www.cwjobs.co.uk
-    search_urls: # one search per target role family — tune freely
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/platform-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/devops-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/cloud-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/site-reliability-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/devsecops-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/cloud-security-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/aws-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/azure-engineer?radius=0
-      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/finops?radius=0
-    selectors:
-      card: "[data-testid='job-card'], .job-item, article[class*='job']"
-      title: "[data-testid*='title'], .job-title, h2"
-      company: "[data-testid*='company'], .company-name"
-      rate: "[data-testid*='salary'], .salary"
-      link: "a[href*='/job/']"
-      description: "[class*='job-description'], [data-testid='job-ad-details'], main"
+  # PRIMARY: Reed jobseeker API — JSON, no bot detection. Free key at
+  # https://www.reed.co.uk/developers (set env REED_API_KEY); skipped if unset.
+  - name: reed
+    type: reed
+    queries: # one API search per target role family
+      - devops engineer
+      - platform engineer
+      - cloud engineer
+      - site reliability engineer
+      - devsecops engineer
+      - cloud security engineer
+      - finops engineer
+      - aws engineer
+      - azure engineer
+    params:
+      contract: "true" # contract roles only; remote/IR35 enforced by the evaluator
 
+  # JobServe saved-search RSS feed — reliable, no browser needed for the list.
+  # Build your search on jobserve.com, save it, click the RSS icon on the
+  # results page, and paste that feed URL here.
   - name: jobserve
-    base_url: https://www.jobserve.com
+    type: rss
     search_urls:
-      # Replace with your saved-search URL (shid) from jobserve.com
-      - https://www.jobserve.com/gb/en/JobSearch.aspx?shid=REPLACE_WITH_YOUR_SAVED_SEARCH
-    selectors:
-      card: ".jobItem, .jobListItem, [id*='jobitem']"
-      title: ".jobResultsTitle, h3, a[class*='title']"
-      company: ".jobResultsComp, [class*='agency']"
-      rate: ".jobResultsSalary, [class*='salary']"
-      link: "a[href*='JobDetail'], a[href*='/job/']"
+      - https://www.jobserve.com/gb/en/JobSearch.aspx?shid=REPLACE_WITH_YOUR_RSS_FEED_URL
+    selectors: # used by the Playwright detail-page fetch
       description: "#JobDetail, .jobDetail, main"
+
+  # CWJobs via headless scraping is unreliable: Totaljobs bot protection resets
+  # connections (ERR_HTTP2_PROTOCOL_ERROR). Kept here disabled as a reference —
+  # re-enable by uncommenting, but expect blocks, especially from CI runners.
+  # - name: cwjobs
+  #   type: html
+  #   base_url: https://www.cwjobs.co.uk
+  #   search_urls:
+  #     - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/devops-engineer?radius=0
+  #   selectors:
+  #     card: "[data-testid='job-card'], .job-item, article[class*='job']"
+  #     title: "[data-testid*='title'], .job-title, h2"
+  #     company: "[data-testid*='company'], .company-name"
+  #     rate: "[data-testid*='salary'], .salary"
+  #     link: "a[href*='/job/']"
+  #     description: "[class*='job-description'], [data-testid='job-ad-details'], main"

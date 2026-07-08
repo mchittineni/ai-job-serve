@@ -43,9 +43,17 @@ cp .env.example .env          # fill in secrets
    frontmatter (`status`, `score`, `company`, `follow_up`, …) so the vault doubles as
    your pipeline tracker. Scope fact-mining with `obsidian.knowledge_folders` in
    `config.yaml` if you don't want the whole vault read.
-3. **Edit `config.yaml`** — profile contact details, hard requirements, board search
-   URLs (put your real JobServe saved-search `shid` in), and stack keywords.
+3. **Edit `config.yaml`** — profile contact details, hard requirements, job sources,
+   and stack keywords.
 4. Run it: `python job-connect.py`
+
+### Job sources (`boards` in config.yaml)
+
+| Type   | Board            | Notes                                                                                                                                                        |
+| ------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `reed` | Reed.co.uk API   | **Primary.** Free key at [reed.co.uk/developers](https://www.reed.co.uk/developers) → `REED_API_KEY`. Clean JSON, no bot detection.                          |
+| `rss`  | JobServe (et al) | Save a search on jobserve.com, click the RSS icon on the results page, paste the feed URL.                                                                   |
+| `html` | Anything else    | Playwright scraping. Boards with aggressive bot protection (CWJobs/Totaljobs) reset headless connections (`ERR_HTTP2_PROTOCOL_ERROR`) — prefer `reed`/`rss`. |
 
 Example Dataview query for a pipeline dashboard note:
 
@@ -97,8 +105,8 @@ Two workflows under `.github/workflows/`:
 Setup:
 
 1. **Secrets** (_Settings → Secrets and variables → Actions → Secrets_):
-   `GEMINI_API_KEY`, `DISCORD_WEBHOOK_URL`, `NOTION_API_KEY`, and for auto mode
-   `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_BCC`.
+   `GEMINI_API_KEY`, `REED_API_KEY`, `DISCORD_WEBHOOK_URL`, `NOTION_API_KEY`, and for
+   auto mode `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_BCC`.
 2. **Variables** (same page, _Variables_ tab): `APPLY_MODE` = `alert` | `draft` |
    `auto` (defaults to `draft` if unset), plus `NOTION_DATABASE_ID` or
    `NOTION_PARENT_PAGE_ID` for the Notion board.

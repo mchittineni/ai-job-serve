@@ -32,7 +32,7 @@ async def process_job(
     job, *, cfg, context, browser, evaluator, knowledge, tailor, tracker, notion, run_stats, applications_sent
 ) -> int:
     """Handle one new job end-to-end. Returns applications sent for this job (0 or 1)."""
-    job.description = await scraper.fetch_description(context, job, cfg.boards)
+    job.description = await scraper.fetch_description(context, job, cfg)
     evaluation = await evaluator.evaluate(job)
 
     print(
@@ -137,7 +137,11 @@ async def run() -> None:
     applications_sent = 0
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # HTTP/1.1 fallback: some boards' bot protection resets HTTP/2 from headless clients
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--disable-http2", "--disable-blink-features=AutomationControlled"],
+        )
         context = await scraper.new_context(browser)
         try:
             jobs = await scrape_new_jobs(context, cfg, tracker)
@@ -171,7 +175,7 @@ async def run() -> None:
 
 
 async def scrape_new_jobs(context, cfg: Config, tracker: Tracker) -> list:
-    jobs = await scraper.scrape_all(context, cfg.boards)
+    jobs = await scraper.scrape_all(context, cfg)
     return [j for j in jobs if not tracker.seen(j.id)]
 
 
