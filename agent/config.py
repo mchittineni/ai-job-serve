@@ -90,7 +90,7 @@ class Config:
 
     @property
     def gemini_model(self) -> str:
-        return os.getenv("GEMINI_MODEL") or self.raw.get("agent", {}).get("model", "gemini-2.5-pro")
+        return os.getenv("GEMINI_MODEL") or self.raw.get("agent", {}).get("model", "gemini-2.5-flash")
 
     # --- candidate profile ---
     @property

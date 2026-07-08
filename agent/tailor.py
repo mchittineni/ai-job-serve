@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from .config import Config
 from .evaluator import JobEvaluation
 from .knowledge import Fact
-from .llm import LLM, LLMError
+from .llm import LLM, LLMError, LLMQuotaError
 from .models import Job
 
 
@@ -126,6 +126,8 @@ VERIFIED CAREER FACTS FROM THE CANDIDATE'S OBSIDIAN VAULT:
                 user=user_msg,
                 schema=ApplicationPackage,
             )
+        except LLMQuotaError:
+            raise  # defer the job: nothing recorded yet, so a later run redoes it with quota
         except LLMError as e:
             print(f"[tailor] {e}")
             return None
