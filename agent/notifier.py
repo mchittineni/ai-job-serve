@@ -78,10 +78,15 @@ async def notify_run_summary(cfg: Config, stats: dict) -> None:
     line = (
         f"Run complete — new: {stats.get('new', 0)}, applied: {stats.get('applied', 0)}, "
         f"drafts: {stats.get('draft', 0)}, alerts: {stats.get('alert', 0)}, "
-        f"skipped: {stats.get('skipped', 0)}, errors: {stats.get('error', 0)}"
+        f"skipped: {stats.get('skipped', 0)}, deferred: {stats.get('deferred', 0)}, "
+        f"errors: {stats.get('error', 0)}"
     )
+    if stats.get("deferred"):
+        line += " ⚠️ Gemini quota ran out — deferred jobs will be retried next run"
     print(f"[notify] {line}")
-    if cfg.discord_webhook and (stats.get("applied") or stats.get("draft") or stats.get("error")):
+    if cfg.discord_webhook and (
+        stats.get("applied") or stats.get("draft") or stats.get("error") or stats.get("deferred")
+    ):
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 await client.post(cfg.discord_webhook, json={"content": f"🧾 {line}"})

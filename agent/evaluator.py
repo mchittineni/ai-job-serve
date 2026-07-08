@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .config import Config
-from .llm import LLM, LLMError
+from .llm import LLM, LLMError, LLMQuotaError
 from .models import Job
 
 
@@ -98,6 +98,10 @@ class Evaluator:
                 schema=JobEvaluation,
                 temperature=0.1,  # scoring should be consistent run to run
             )
+        except LLMQuotaError:
+            # do NOT fall back: a heuristic result would be recorded and the job
+            # never revisited. Propagate so the run defers this job to later.
+            raise
         except LLMError as e:
             print(f"[evaluate] {e} — heuristic fallback")
             return self._heuristic(job)

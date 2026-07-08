@@ -72,6 +72,9 @@ async def scrape_board(context: BrowserContext, board: dict) -> list[Job]:
     page = await context.new_page()
     try:
         for url in board.get("search_urls", []):
+            if "REPLACE_WITH" in url:
+                print(f"[scrape] {name}: skipped — placeholder URL still in config.yaml")
+                continue
             print(f"[scrape] {name}: {url}")
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=45000)

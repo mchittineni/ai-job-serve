@@ -43,7 +43,8 @@ search:
 
 agent:
   mode: draft # alert | draft | auto  (env APPLY_MODE overrides)
-  model: gemini-2.5-pro # or gemini-2.5-flash (faster/cheaper); env GEMINI_MODEL overrides
+  # gemini-2.5-pro has ZERO free-tier quota (429 "limit: 0") — only use it with billing enabled
+  model: gemini-2.5-flash # env GEMINI_MODEL overrides
   min_score: 70 # tailored materials are only produced at/above this fit score
   max_applications_per_run: 3
   max_applications_per_day: 10
