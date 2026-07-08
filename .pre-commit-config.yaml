@@ -24,13 +24,13 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.20
     hooks:
-      - id: ruff-check          # lint (pycodestyle/pyflakes/isort/bugbear/pyupgrade)
+      - id: ruff-check # lint (pycodestyle/pyflakes/isort/bugbear/pyupgrade)
         args: [--fix]
-      - id: ruff-format         # formatting (black-compatible)
+      - id: ruff-format # formatting (black-compatible)
 
   - repo: https://github.com/rbubley/mirrors-prettier
     rev: v3.9.4
     hooks:
       - id: prettier
         types_or: [yaml, json, markdown]
-        exclude: ^profile/       # the master resume's formatting is content, not style
+        exclude: ^profile/ # the master resume's formatting is content, not style
