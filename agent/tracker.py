@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .models import Job
@@ -36,9 +36,10 @@ class Tracker:
         row = self.conn.execute("SELECT 1 FROM jobs WHERE id = ?", (job_id,)).fetchone()
         return row is not None
 
-    def record(self, job: Job, status: str, score: int | None = None,
-               reason: str = "", payload: dict | None = None) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+    def record(
+        self, job: Job, status: str, score: int | None = None, reason: str = "", payload: dict | None = None
+    ) -> None:
+        now = datetime.now(UTC).isoformat()
         self.conn.execute(
             """INSERT INTO jobs (id, title, company, url, source, rate, status, score,
                                  reason, first_seen, updated_at, payload)
@@ -47,13 +48,25 @@ class Tracker:
                  status = excluded.status, score = excluded.score,
                  reason = excluded.reason, updated_at = excluded.updated_at,
                  payload = excluded.payload""",
-            (job.id, job.title, job.company, job.url, job.source, job.rate,
-             status, score, reason, now, now, json.dumps(payload or {})),
+            (
+                job.id,
+                job.title,
+                job.company,
+                job.url,
+                job.source,
+                job.rate,
+                status,
+                score,
+                reason,
+                now,
+                now,
+                json.dumps(payload or {}),
+            ),
         )
         self.conn.commit()
 
     def applications_today(self) -> int:
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = datetime.now(UTC).date().isoformat()
         row = self.conn.execute(
             "SELECT COUNT(*) FROM jobs WHERE status = 'applied' AND updated_at >= ?",
             (today,),

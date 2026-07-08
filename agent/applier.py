@@ -4,6 +4,7 @@ Contract roles on JobServe/CWJobs are usually agency-mediated, and agencies list
 an apply email — email with a PDF resume attached is the one channel that works
 reliably and doesn't fight per-site application forms.
 """
+
 import asyncio
 import re
 import smtplib
@@ -19,8 +20,7 @@ from .tailor import ApplicationPackage
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 
-def _send_sync(smtp_cfg: dict, to_addr: str, subject: str, body: str,
-               attachments: list[Path]) -> None:
+def _send_sync(smtp_cfg: dict, to_addr: str, subject: str, body: str, attachments: list[Path]) -> None:
     msg = EmailMessage()
     msg["From"] = smtp_cfg["from_addr"]
     msg["To"] = to_addr
@@ -51,8 +51,9 @@ def _send_sync(smtp_cfg: dict, to_addr: str, subject: str, body: str,
         server.send_message(msg)
 
 
-async def send_application(cfg: Config, job: Job, package: ApplicationPackage,
-                           to_addr: str, materials_dir: Path) -> None:
+async def send_application(
+    cfg: Config, job: Job, package: ApplicationPackage, to_addr: str, materials_dir: Path
+) -> None:
     """Raises on failure so the caller can downgrade the job to draft status."""
     smtp_cfg = cfg.smtp
     if not smtp_cfg:
@@ -63,6 +64,11 @@ async def send_application(cfg: Config, job: Job, package: ApplicationPackage,
 
     resume_pdf = materials_dir / "resume.pdf"
     await asyncio.to_thread(
-        _send_sync, smtp_cfg, to_addr, package.email_subject, package.email_body, [resume_pdf],
+        _send_sync,
+        smtp_cfg,
+        to_addr,
+        package.email_subject,
+        package.email_body,
+        [resume_pdf],
     )
     print(f"[apply] emailed application for '{job.title}' to {to_addr}")

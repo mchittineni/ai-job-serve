@@ -13,6 +13,7 @@ Pipeline per run (designed for a cron schedule):
 
 Configuration: config.yaml (search/boards/profile) + environment (secrets).
 """
+
 import asyncio
 import traceback
 
@@ -27,15 +28,18 @@ from agent.tailor import Tailor
 from agent.tracker import Tracker
 
 
-async def process_job(job, *, cfg, context, browser, evaluator, knowledge,
-                      tailor, tracker, notion, run_stats, applications_sent) -> int:
+async def process_job(
+    job, *, cfg, context, browser, evaluator, knowledge, tailor, tracker, notion, run_stats, applications_sent
+) -> int:
     """Handle one new job end-to-end. Returns applications sent for this job (0 or 1)."""
     job.description = await scraper.fetch_description(context, job, cfg.boards)
     evaluation = await evaluator.evaluate(job)
 
-    print(f"[eval] {job.title} @ {job.company}: score={evaluation.fit_score} "
-          f"ir35={evaluation.ir35_status} remote={evaluation.remote_status} "
-          f"apply={evaluation.should_apply}")
+    print(
+        f"[eval] {job.title} @ {job.company}: score={evaluation.fit_score} "
+        f"ir35={evaluation.ir35_status} remote={evaluation.remote_status} "
+        f"apply={evaluation.should_apply}"
+    )
 
     if not evaluation.should_apply or evaluation.fit_score < cfg.min_score:
         reason = "; ".join(evaluation.red_flags) or f"score {evaluation.fit_score} < {cfg.min_score}"
@@ -56,12 +60,18 @@ async def process_job(job, *, cfg, context, browser, evaluator, knowledge,
     package = await tailor.build_package(job, evaluation, master_resume, facts)
 
     if package is None:
-        tracker.record(job, "evaluated", evaluation.fit_score,
-                       "match found but tailoring unavailable", job.to_dict())
+        tracker.record(
+            job, "evaluated", evaluation.fit_score, "match found but tailoring unavailable", job.to_dict()
+        )
         notion_url = await notion.track(job, evaluation, "alert")
-        await notifier.notify(cfg, job, evaluation, "alert", notion_url=notion_url,
-                              detail="Strong match, but no tailored materials "
-                                     "(check GEMINI_API_KEY / master resume).")
+        await notifier.notify(
+            cfg,
+            job,
+            evaluation,
+            "alert",
+            notion_url=notion_url,
+            detail="Strong match, but no tailored materials (check GEMINI_API_KEY / master resume).",
+        )
         run_stats["alert"] += 1
         return 0
 
@@ -70,8 +80,7 @@ async def process_job(job, *, cfg, context, browser, evaluator, knowledge,
     # --- apply or draft ---
     daily_room = tracker.applications_today() < cfg.max_applications_per_day
     run_room = applications_sent < cfg.max_applications_per_run
-    can_auto = (cfg.apply_mode == "auto" and evaluation.apply_email
-                and cfg.smtp and daily_room and run_room)
+    can_auto = cfg.apply_mode == "auto" and evaluation.apply_email and cfg.smtp and daily_room and run_room
 
     status, detail, sent = "draft", "", 0
     if can_auto:
@@ -90,12 +99,21 @@ async def process_job(job, *, cfg, context, browser, evaluator, knowledge,
         elif not (daily_room and run_room):
             detail = "Application rate limit reached — saved as draft"
 
-    tracker.record(job, status, evaluation.fit_score, detail,
-                   {**job.to_dict(), "materials": str(materials_dir)})
+    tracker.record(
+        job, status, evaluation.fit_score, detail, {**job.to_dict(), "materials": str(materials_dir)}
+    )
     note_path = knowledge.write_application_note(job, evaluation, package, status, materials_dir)
     notion_url = await notion.track(job, evaluation, status, materials_dir, package)
-    await notifier.notify(cfg, job, evaluation, status, materials_dir=materials_dir,
-                          note_path=note_path, notion_url=notion_url, detail=detail)
+    await notifier.notify(
+        cfg,
+        job,
+        evaluation,
+        status,
+        materials_dir=materials_dir,
+        note_path=note_path,
+        notion_url=notion_url,
+        detail=detail,
+    )
     run_stats[status] += 1
     return sent
 
@@ -108,10 +126,12 @@ async def run() -> None:
     tailor = Tailor(cfg)
     notion = NotionTracker(cfg)
 
-    print(f"[run] mode={cfg.apply_mode} min_score={cfg.min_score} "
-          f"model={cfg.gemini_model if cfg.gemini_api_key else 'heuristic (no API key)'} "
-          f"vault={'yes' if cfg.vault_path else 'no'} "
-          f"notion={'yes' if notion.enabled else 'no'}")
+    print(
+        f"[run] mode={cfg.apply_mode} min_score={cfg.min_score} "
+        f"model={cfg.gemini_model if cfg.gemini_api_key else 'heuristic (no API key)'} "
+        f"vault={'yes' if cfg.vault_path else 'no'} "
+        f"notion={'yes' if notion.enabled else 'no'}"
+    )
 
     run_stats = {"new": 0, "applied": 0, "draft": 0, "alert": 0, "skipped": 0, "error": 0}
     applications_sent = 0
@@ -127,9 +147,16 @@ async def run() -> None:
             for job in jobs:
                 try:
                     applications_sent += await process_job(
-                        job, cfg=cfg, context=context, browser=browser,
-                        evaluator=evaluator, knowledge=knowledge, tailor=tailor,
-                        tracker=tracker, notion=notion, run_stats=run_stats,
+                        job,
+                        cfg=cfg,
+                        context=context,
+                        browser=browser,
+                        evaluator=evaluator,
+                        knowledge=knowledge,
+                        tailor=tailor,
+                        tracker=tracker,
+                        notion=notion,
+                        run_stats=run_stats,
                         applications_sent=applications_sent,
                     )
                 except Exception:

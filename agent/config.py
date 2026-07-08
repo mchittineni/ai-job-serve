@@ -58,13 +58,17 @@ class Config:
 
     @property
     def max_applications_per_run(self) -> int:
-        return int(os.getenv("MAX_APPLICATIONS_PER_RUN")
-                   or self.raw.get("agent", {}).get("max_applications_per_run", 3))
+        return int(
+            os.getenv("MAX_APPLICATIONS_PER_RUN")
+            or self.raw.get("agent", {}).get("max_applications_per_run", 3)
+        )
 
     @property
     def max_applications_per_day(self) -> int:
-        return int(os.getenv("MAX_APPLICATIONS_PER_DAY")
-                   or self.raw.get("agent", {}).get("max_applications_per_day", 10))
+        return int(
+            os.getenv("MAX_APPLICATIONS_PER_DAY")
+            or self.raw.get("agent", {}).get("max_applications_per_day", 10)
+        )
 
     # --- Gemini ---
     @property
@@ -82,9 +86,11 @@ class Config:
 
     @property
     def resume_path(self) -> Path:
-        return Path(os.getenv("RESUME_PATH")
-                    or self.raw.get("profile", {}).get("master_resume")
-                    or ROOT / "profile" / "master-resume.md")
+        return Path(
+            os.getenv("RESUME_PATH")
+            or self.raw.get("profile", {}).get("master_resume")
+            or ROOT / "profile" / "master-resume.md"
+        )
 
     # --- Obsidian ---
     @property
@@ -105,8 +111,9 @@ class Config:
 
     @property
     def vault_write_enabled(self) -> bool:
-        return _env_bool("OBSIDIAN_WRITE_NOTES",
-                         bool(self.raw.get("obsidian", {}).get("write_application_notes", True)))
+        return _env_bool(
+            "OBSIDIAN_WRITE_NOTES", bool(self.raw.get("obsidian", {}).get("write_application_notes", True))
+        )
 
     # --- Notion job tracking ---
     @property

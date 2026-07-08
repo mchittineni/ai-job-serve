@@ -1,0 +1,36 @@
+# Run `pre-commit install` once after cloning; hooks then run on every commit.
+# CI runs the same hooks via `pre-commit run --all-files` (see ci.yml).
+
+# data/ is bot-committed agent state — hooks must never fight the Actions runner.
+exclude: ^data/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      - id: ruff-check          # lint (pycodestyle/pyflakes/isort/bugbear/pyupgrade)
+        args: [--fix]
+      - id: ruff-format         # formatting (black-compatible)
+
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.4
+    hooks:
+      - id: prettier
+        types_or: [yaml, json, markdown]
+        exclude: ^profile/       # the master resume's formatting is content, not style

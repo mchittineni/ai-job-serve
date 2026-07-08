@@ -17,10 +17,10 @@ scrape boards ──> dedupe (SQLite) ──> fetch full description
 
 ## Modes (`APPLY_MODE`)
 
-| Mode    | What happens |
-|---------|--------------|
-| `alert` | Notify on matches only (no LLM tailoring needed) |
-| `draft` | **Default.** Generates resume PDF + cover letter + application email into `data/applications/<job>/` for you to review and send |
+| Mode    | What happens                                                                                                                                                                                    |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `alert` | Notify on matches only (no LLM tailoring needed)                                                                                                                                                |
+| `draft` | **Default.** Generates resume PDF + cover letter + application email into `data/applications/<job>/` for you to review and send                                                                 |
 | `auto`  | Emails the application (resume PDF attached) when the listing contains an apply address; otherwise falls back to draft. Rate-limited by `MAX_APPLICATIONS_PER_RUN` / `MAX_APPLICATIONS_PER_DAY` |
 
 Start in `draft`, sanity-check a few generated packages, then switch to `auto`.
@@ -29,15 +29,16 @@ Start in `draft`, sanity-check a few generated packages, then switch to `auto`.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime deps + pre-commit + ruff
 python -m playwright install chromium
+pre-commit install            # ruff lint/format, prettier, hygiene checks on commit
 cp .env.example .env          # fill in secrets
 ```
 
 1. **Fill in `profile/master-resume.md`** — this is the single source of truth the
    agent tailors from. It will never claim anything not written here or in the vault.
 2. **Point `OBSIDIAN_VAULT_PATH` at your vault.** The agent mines it for career facts
-   (projects, achievements, metrics) to make each resume specific *and accurate*, and
+   (projects, achievements, metrics) to make each resume specific _and accurate_, and
    writes one note per application into `Applications/` with Dataview-friendly
    frontmatter (`status`, `score`, `company`, `follow_up`, …) so the vault doubles as
    your pipeline tracker. Scope fact-mining with `obsidian.knowledge_folders` in
@@ -68,7 +69,7 @@ Setup (2 minutes):
 
 1. Create an internal integration at [notion.so/my-integrations](https://www.notion.so/my-integrations)
    and copy the token → `NOTION_API_KEY`.
-2. Pick a Notion page for tracking, open its `…` menu → *Connections* → add your
+2. Pick a Notion page for tracking, open its `…` menu → _Connections_ → add your
    integration, and set `NOTION_PARENT_PAGE_ID` (the 32-char id from the page URL).
    The agent creates a **Job Applications** database there on its first run.
    (Alternatively point `NOTION_DATABASE_ID` at an existing database that has the
@@ -76,7 +77,7 @@ Setup (2 minutes):
 3. On GitHub: add `NOTION_API_KEY` as a secret and `NOTION_DATABASE_ID` /
    `NOTION_PARENT_PAGE_ID` as repository **variables**.
 
-Tip: add a *Board* view grouped by **Status** in Notion and you have a kanban of your
+Tip: add a _Board_ view grouped by **Status** in Notion and you have a kanban of your
 whole job search. Notion tracking is best-effort — if the API call fails the run
 continues, and the SQLite dedupe DB remains the agent's source of truth.
 
@@ -90,15 +91,15 @@ Two workflows under `.github/workflows/`:
 - **`ci.yml`** — on every push/PR: installs deps, compiles all modules, validates
   `config.yaml`, and smoke-tests imports + the master resume.
 - **`job-agent.yml`** — runs the agent every 30 min on UK weekday work hours
-  (GitHub cron is UTC), and on demand via *Actions → Job Agent → Run workflow*,
+  (GitHub cron is UTC), and on demand via _Actions → Job Agent → Run workflow_,
   where you can override the apply mode per run.
 
 Setup:
 
-1. **Secrets** (*Settings → Secrets and variables → Actions → Secrets*):
+1. **Secrets** (_Settings → Secrets and variables → Actions → Secrets_):
    `GEMINI_API_KEY`, `DISCORD_WEBHOOK_URL`, `NOTION_API_KEY`, and for auto mode
    `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_BCC`.
-2. **Variables** (same page, *Variables* tab): `APPLY_MODE` = `alert` | `draft` |
+2. **Variables** (same page, _Variables_ tab): `APPLY_MODE` = `alert` | `draft` |
    `auto` (defaults to `draft` if unset), plus `NOTION_DATABASE_ID` or
    `NOTION_PARENT_PAGE_ID` for the Notion board.
 3. Push to `main`. Done — no server needed.

@@ -3,8 +3,9 @@
 Falls back to the original keyword heuristics when GEMINI_API_KEY is unset,
 so the pipeline still works in alert-only mode without an API key.
 """
+
 import re
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -19,11 +20,17 @@ class JobEvaluation(BaseModel):
     remote_status: Literal["fully_remote", "hybrid", "onsite", "unknown"]
     matched_skills: list[str]
     missing_skills: list[str]
-    red_flags: list[str] = Field(description="Dealbreakers or concerns, e.g. inside IR35, onsite, clearance required")
-    apply_email: Optional[str] = Field(description="Email address to apply to if present in the listing, else null")
-    recruiter_name: Optional[str] = Field(description="Named contact/recruiter if present, else null")
+    red_flags: list[str] = Field(
+        description="Dealbreakers or concerns, e.g. inside IR35, onsite, clearance required"
+    )
+    apply_email: str | None = Field(
+        description="Email address to apply to if present in the listing, else null"
+    )
+    recruiter_name: str | None = Field(description="Named contact/recruiter if present, else null")
     summary: str = Field(description="2-3 sentence assessment of the opportunity for this candidate")
-    should_apply: bool = Field(description="True only if the job meets every hard requirement AND fit is strong")
+    should_apply: bool = Field(
+        description="True only if the job meets every hard requirement AND fit is strong"
+    )
 
 
 EVAL_SYSTEM = """You evaluate job/contract listings for one specific candidate.
@@ -49,9 +56,19 @@ Rules:
 
 # role words used by the no-API-key heuristic to check the title is in scope
 ROLE_TITLE_WORDS = (
-    "cloud", "devops", "devsecops", "secops", "platform", "sre",
-    "site reliability", "finops", "infrastructure", "security",
-    "aws", "azure", "gcp",
+    "cloud",
+    "devops",
+    "devsecops",
+    "secops",
+    "platform",
+    "sre",
+    "site reliability",
+    "finops",
+    "infrastructure",
+    "security",
+    "aws",
+    "azure",
+    "gcp",
 )
 
 

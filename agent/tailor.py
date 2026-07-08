@@ -3,6 +3,7 @@
 The resume PDF is rendered with the Chromium instance Playwright already ships,
 so no extra PDF dependency is needed.
 """
+
 import re
 from pathlib import Path
 
@@ -21,8 +22,12 @@ class ApplicationPackage(BaseModel):
     resume_markdown: str = Field(description="Complete tailored resume in clean markdown")
     cover_letter: str = Field(description="Cover letter body, 200-320 words, plain text paragraphs")
     email_subject: str = Field(description="Subject line for an application email")
-    email_body: str = Field(description="Short professional email body wrapping the cover letter, ready to send, ending with the candidate's sign-off")
-    tailoring_notes: list[str] = Field(description="What was emphasized/reordered and why (for the human's audit trail)")
+    email_body: str = Field(
+        description="Short professional email body wrapping the cover letter, ready to send, ending with the candidate's sign-off"
+    )
+    tailoring_notes: list[str] = Field(
+        description="What was emphasized/reordered and why (for the human's audit trail)"
+    )
 
 
 TAILOR_SYSTEM = """You tailor resumes and cover letters for a specific job listing.
@@ -71,32 +76,43 @@ class Tailor:
         self.cfg = cfg
         self.llm = LLM(cfg)
 
-    async def build_package(self, job: Job, evaluation: JobEvaluation,
-                            master_resume: str, facts: list[Fact]) -> ApplicationPackage | None:
+    async def build_package(
+        self, job: Job, evaluation: JobEvaluation, master_resume: str, facts: list[Fact]
+    ) -> ApplicationPackage | None:
         if not self.llm.enabled or not master_resume.strip():
             print("[tailor] skipped (needs GEMINI_API_KEY and a master resume)")
             return None
 
-        fact_block = "\n\n".join(
-            f"[{f.source} :: {f.heading or 'note'}]\n{f.text}" for f in facts
-        ) or "(no additional vault facts retrieved)"
+        fact_block = (
+            "\n\n".join(f"[{f.source} :: {f.heading or 'note'}]\n{f.text}" for f in facts)
+            or "(no additional vault facts retrieved)"
+        )
         profile = self.cfg.profile
-        contact = ", ".join(filter(None, [
-            profile.get("name"), profile.get("email"), profile.get("phone"),
-            profile.get("location"), profile.get("linkedin"), profile.get("website"),
-        ]))
+        contact = ", ".join(
+            filter(
+                None,
+                [
+                    profile.get("name"),
+                    profile.get("email"),
+                    profile.get("phone"),
+                    profile.get("location"),
+                    profile.get("linkedin"),
+                    profile.get("website"),
+                ],
+            )
+        )
 
         user_msg = f"""JOB LISTING
 Title: {job.title}
 Company/Agency: {job.company} | Rate: {job.rate} | Source: {job.source}
 Evaluator summary: {evaluation.summary}
-Matched skills: {', '.join(evaluation.matched_skills)}
-Gaps to address honestly in the letter: {', '.join(evaluation.missing_skills) or 'none'}
+Matched skills: {", ".join(evaluation.matched_skills)}
+Gaps to address honestly in the letter: {", ".join(evaluation.missing_skills) or "none"}
 
 Listing text:
 {job.full_text[:6000]}
 
-CANDIDATE CONTACT LINE (use verbatim in the resume header): {contact or '(take from master resume)'}
+CANDIDATE CONTACT LINE (use verbatim in the resume header): {contact or "(take from master resume)"}
 
 MASTER RESUME (the only permitted source of experience):
 {master_resume[:12000]}
@@ -106,14 +122,15 @@ VERIFIED CAREER FACTS FROM THE CANDIDATE'S OBSIDIAN VAULT:
 """
         try:
             return await self.llm.generate_structured(
-                system=TAILOR_SYSTEM, user=user_msg, schema=ApplicationPackage,
+                system=TAILOR_SYSTEM,
+                user=user_msg,
+                schema=ApplicationPackage,
             )
         except LLMError as e:
             print(f"[tailor] {e}")
             return None
 
-    async def save_package(self, browser: Browser, job: Job,
-                           package: ApplicationPackage) -> Path:
+    async def save_package(self, browser: Browser, job: Job, package: ApplicationPackage) -> Path:
         """Write resume.md/.pdf + cover letter into data/applications/<job>/."""
         safe = re.sub(r"[^\w-]+", "-", f"{job.company}-{job.title}").strip("-")[:70].lower()
         out = self.cfg.output_dir / f"{safe}-{job.id[:8]}"
@@ -122,9 +139,11 @@ VERIFIED CAREER FACTS FROM THE CANDIDATE'S OBSIDIAN VAULT:
         (out / "resume.md").write_text(package.resume_markdown, encoding="utf-8")
         (out / "cover-letter.txt").write_text(package.cover_letter, encoding="utf-8")
         (out / "email.txt").write_text(
-            f"Subject: {package.email_subject}\n\n{package.email_body}", encoding="utf-8")
+            f"Subject: {package.email_subject}\n\n{package.email_body}", encoding="utf-8"
+        )
         (out / "tailoring-notes.md").write_text(
-            "\n".join(f"- {n}" for n in package.tailoring_notes), encoding="utf-8")
+            "\n".join(f"- {n}" for n in package.tailoring_notes), encoding="utf-8"
+        )
 
         html = (
             "<meta charset='utf-8'>"

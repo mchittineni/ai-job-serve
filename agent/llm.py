@@ -6,6 +6,7 @@ Transient API errors (429/5xx) are retried with backoff — without this, a blip
 would demote a strong job to the keyword heuristic and it would be skipped
 forever (the dedupe DB never revisits a job).
 """
+
 import asyncio
 import random
 
@@ -31,8 +32,7 @@ class LLM:
     def enabled(self) -> bool:
         return self.client is not None
 
-    async def generate_structured(self, *, system: str, user: str, schema,
-                                  temperature: float | None = None):
+    async def generate_structured(self, *, system: str, user: str, schema, temperature: float | None = None):
         """Generate a response validated against `schema` (a Pydantic model class)."""
         if self.client is None:
             raise LLMError("GEMINI_API_KEY not configured")
@@ -48,13 +48,15 @@ class LLM:
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
                 response = await self.client.aio.models.generate_content(
-                    model=self.cfg.gemini_model, contents=user, config=config,
+                    model=self.cfg.gemini_model,
+                    contents=user,
+                    config=config,
                 )
                 break
             except errors.APIError as e:
                 last_error = e
                 if e.code in RETRYABLE_CODES and attempt < MAX_ATTEMPTS:
-                    delay = 2 ** attempt + random.uniform(0, 1)
+                    delay = 2**attempt + random.uniform(0, 1)
                     print(f"[llm] {e.code} from Gemini, retry {attempt}/{MAX_ATTEMPTS - 1} in {delay:.1f}s")
                     await asyncio.sleep(delay)
                     continue
@@ -64,9 +66,11 @@ class LLM:
 
         usage = getattr(response, "usage_metadata", None)
         if usage:
-            print(f"[llm] {self.cfg.gemini_model}: "
-                  f"in={getattr(usage, 'prompt_token_count', '?')} "
-                  f"out={getattr(usage, 'candidates_token_count', '?')} tokens")
+            print(
+                f"[llm] {self.cfg.gemini_model}: "
+                f"in={getattr(usage, 'prompt_token_count', '?')} "
+                f"out={getattr(usage, 'candidates_token_count', '?')} tokens"
+            )
 
         parsed = getattr(response, "parsed", None)
         if parsed is not None:

@@ -5,20 +5,64 @@ Read side:  career notes ground the resume/cover-letter tailoring so the model
 Write side: one application note per job (Dataview-friendly frontmatter) so the
             vault doubles as the application pipeline tracker.
 """
+
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .config import Config
 from .models import Job
 
 STOPWORDS = {
-    "the", "and", "for", "with", "you", "your", "will", "are", "our", "this", "that",
-    "have", "from", "they", "their", "role", "team", "work", "working", "who", "what",
-    "about", "into", "been", "were", "which", "would", "should", "could", "them",
-    "than", "then", "there", "these", "those", "over", "such", "per", "day", "must",
-    "job", "jobs", "apply", "candidate", "experience", "skills", "required", "years",
+    "the",
+    "and",
+    "for",
+    "with",
+    "you",
+    "your",
+    "will",
+    "are",
+    "our",
+    "this",
+    "that",
+    "have",
+    "from",
+    "they",
+    "their",
+    "role",
+    "team",
+    "work",
+    "working",
+    "who",
+    "what",
+    "about",
+    "into",
+    "been",
+    "were",
+    "which",
+    "would",
+    "should",
+    "could",
+    "them",
+    "than",
+    "then",
+    "there",
+    "these",
+    "those",
+    "over",
+    "such",
+    "per",
+    "day",
+    "must",
+    "job",
+    "jobs",
+    "apply",
+    "candidate",
+    "experience",
+    "skills",
+    "required",
+    "years",
 }
 
 SKIP_DIRS = {".obsidian", ".trash", "templates", "Templates"}
@@ -26,7 +70,7 @@ SKIP_DIRS = {".obsidian", ".trash", "templates", "Templates"}
 
 @dataclass
 class Fact:
-    source: str   # note name (vault-relative)
+    source: str  # note name (vault-relative)
     heading: str
     text: str
 
@@ -40,7 +84,7 @@ def _strip_frontmatter(text: str) -> str:
     if text.startswith("---"):
         end = text.find("\n---", 3)
         if end != -1:
-            return text[end + 4:]
+            return text[end + 4 :]
     return text
 
 
@@ -119,8 +163,10 @@ class Knowledge:
                     for heading, body in _chunk_note(text):
                         chunks.append(Fact(source=rel, heading=heading, text=body))
         self._chunks = chunks
-        print(f"[knowledge] loaded {len(chunks)} fact chunks"
-              f" from {'vault' if self.vault else 'no vault (profile only)'}")
+        print(
+            f"[knowledge] loaded {len(chunks)} fact chunks"
+            f" from {'vault' if self.vault else 'no vault (profile only)'}"
+        )
         return chunks
 
     def retrieve_facts(self, job_text: str, top_n: int = 8, max_chars: int = 6000) -> list[Fact]:
@@ -151,10 +197,11 @@ class Knowledge:
 
     # ---------- write side ----------
 
-    def write_application_note(self, job: Job, evaluation, package,
-                               status: str, materials_dir: Path | None) -> Path | None:
+    def write_application_note(
+        self, job: Job, evaluation, package, status: str, materials_dir: Path | None
+    ) -> Path | None:
         """Log the application into the vault (or locally when no vault is configured)."""
-        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date = datetime.now(UTC).strftime("%Y-%m-%d")
         safe = re.sub(r"[^\w\s-]", "", f"{job.company} - {job.title}").strip()[:80]
         filename = f"{date} {safe}.md"
 

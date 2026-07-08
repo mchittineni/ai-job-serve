@@ -1,6 +1,6 @@
 import hashlib
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -12,7 +12,7 @@ class Job:
     source: str
     snippet: str = ""
     description: str = ""
-    scraped_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    scraped_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def id(self) -> str:

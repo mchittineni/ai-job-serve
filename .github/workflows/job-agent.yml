@@ -1,10 +1,10 @@
-name: Job Agent
+name: Agent Job
 
 on:
   schedule:
-    # Every 30 min, 07:00-17:30 UTC, Mon-Fri (GitHub cron is UTC — this covers
-    # 08:00-18:30 UK time during BST). GitHub may delay scheduled runs slightly.
-    - cron: "*/30 7-17 * * 1-5"
+    # Every 30 min, 08:00-16:30 UTC, Mon-Fri (GitHub cron is UTC — this covers
+    # 09:00-17:30 UK time during BST). GitHub may delay scheduled runs slightly.
+    - cron: "*/30 8-16 * * 1-5"
   workflow_dispatch:
     inputs:
       apply_mode:
@@ -20,12 +20,13 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write   # the run commits data/ (SQLite state + generated materials) back
+  contents: write # the run commits data/ (SQLite state + generated materials) back
 
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

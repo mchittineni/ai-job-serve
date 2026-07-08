@@ -5,8 +5,10 @@ from playwright.async_api import Browser, BrowserContext
 
 from .models import Job
 
-USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-              "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
 DEFAULT_SELECTORS = {
     "card": ".job-item, .job-search-result, [data-testid='job-card'], article[class*='job']",
@@ -15,7 +17,7 @@ DEFAULT_SELECTORS = {
     "rate": ".salary, .job-salary, [class*='salary'], [class*='rate']",
     "link": "a[href*='/job/'], a[href*='/jobs/'], a[href*='JobDetail'], a[href]",
     "description": "[class*='job-description'], [class*='jobDescription'], "
-                   "[id*='description'], main, article",
+    "[id*='description'], main, article",
 }
 
 MAX_DESCRIPTION_CHARS = 8000
@@ -57,14 +59,16 @@ async def scrape_board(context: BrowserContext, board: dict) -> list[Job]:
                 href = link_el.get("href", "") if link_el else ""
                 if not href:
                     continue
-                jobs.append(Job(
-                    title=title,
-                    company=company,
-                    rate=rate,
-                    url=urljoin(base_url or url, href),
-                    source=name,
-                    snippet=card.get_text(" ", strip=True)[:1500],
-                ))
+                jobs.append(
+                    Job(
+                        title=title,
+                        company=company,
+                        rate=rate,
+                        url=urljoin(base_url or url, href),
+                        source=name,
+                        snippet=card.get_text(" ", strip=True)[:1500],
+                    )
+                )
     finally:
         await page.close()
 

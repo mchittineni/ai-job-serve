@@ -1,7 +1,7 @@
 # Non-secret configuration. Secrets (API keys, SMTP, webhook) live in environment variables.
 
 search:
-  target_roles:        # role families the agent applies to; anything else is rejected
+  target_roles: # role families the agent applies to; anything else is rejected
     - Cloud Engineer (AWS / Azure / GCP)
     - DevOps Engineer
     - DevSecOps Engineer
@@ -10,7 +10,7 @@ search:
     - Site Reliability Engineer (SRE)
     - FinOps / Cloud Cost Optimisation Engineer
     - Infrastructure Engineer (cloud-focused)
-  keywords:            # stack anchors used by the heuristic fallback + evaluator context
+  keywords: # stack anchors used by the heuristic fallback + evaluator context
     - terraform
     - databricks
     - bedrock
@@ -36,15 +36,15 @@ search:
     - genai
     - llm
   requirements:
-    hard:              # any violation -> should_apply = false
+    hard: # any violation -> should_apply = false
       - Outside IR35 only (UK contracts) — inside IR35 is a dealbreaker
       - Fully remote only — hybrid or on-site requirements are a dealbreaker
       - Role must be within the target role families (cloud/devops/devsecops/secops/platform/sre/finops on AWS, Azure, or GCP)
 
 agent:
-  mode: draft          # alert | draft | auto  (env APPLY_MODE overrides)
-  model: gemini-2.5-pro   # or gemini-2.5-flash (faster/cheaper); env GEMINI_MODEL overrides
-  min_score: 70        # tailored materials are only produced at/above this fit score
+  mode: draft # alert | draft | auto  (env APPLY_MODE overrides)
+  model: gemini-2.5-pro # or gemini-2.5-flash (faster/cheaper); env GEMINI_MODEL overrides
+  min_score: 70 # tailored materials are only produced at/above this fit score
   max_applications_per_run: 3
   max_applications_per_day: 10
 
@@ -56,7 +56,7 @@ profile:
   location: "Gloucester, UK (Remote)"
   linkedin: "linkedin.com/in/manideepchittineni"
   website: "github.com/mchittineni"
-  master_resume: profile/master-resume.md   # env RESUME_PATH overrides
+  master_resume: profile/master-resume.md # env RESUME_PATH overrides
 
 notion:
   # Job pipeline tracking in a Notion database (env NOTION_DATABASE_ID /
@@ -74,14 +74,14 @@ obsidian:
   vault_path: ""
   # Folders inside the vault to mine for career facts. Empty = whole vault
   # (minus .obsidian/, templates/, and the applications folder below).
-  knowledge_folders: []          # e.g. [Career, Projects, Achievements]
+  knowledge_folders: [] # e.g. [Career, Projects, Achievements]
   applications_folder: Applications
   write_application_notes: true
 
 boards:
   - name: cwjobs
     base_url: https://www.cwjobs.co.uk
-    search_urls:        # one search per target role family — tune freely
+    search_urls: # one search per target role family — tune freely
       - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/platform-engineer?radius=0
       - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/devops-engineer?radius=0
       - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/cloud-engineer?radius=0
