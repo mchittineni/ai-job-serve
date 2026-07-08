@@ -1,16 +1,19 @@
-"""Job sources. Four board types, set per-board in config.yaml:
+"""Job sources. Five board types, set per-board in config.yaml:
 
-type: reed   — Reed.co.uk jobseeker API (free key). Most reliable: plain JSON,
-               no bot detection. Needs REED_API_KEY.
-type: adzuna — Adzuna aggregator API (free key). Covers many UK boards,
-               including Totaljobs/CWJobs content, as plain JSON.
-               Needs ADZUNA_APP_ID + ADZUNA_APP_KEY.
-type: rss    — any RSS feed (e.g. a JobServe saved-search feed). No browser
-               needed for the listing; detail pages still fetched via Playwright.
-type: html   — Playwright scraping (default). Boards behind aggressive bot
-               protection (CWJobs/Totaljobs) may reset connections regardless.
+type: reed     — Reed.co.uk jobseeker API (free key). Most reliable: plain JSON,
+                 no bot detection. Needs REED_API_KEY.
+type: adzuna   — Adzuna aggregator API (free key). Covers many UK boards,
+                 including Totaljobs/CWJobs content, as plain JSON.
+                 Needs ADZUNA_APP_ID + ADZUNA_APP_KEY.
+type: linkedin — LinkedIn's unauthenticated guest endpoint (no key). Unofficial:
+                 rate-limits aggressively, so keep queries modest; backs off on 429.
+type: rss      — any RSS feed (e.g. a JobServe saved-search feed). No browser
+                 needed for the listing; detail pages still fetched via Playwright.
+type: html     — Playwright scraping (default). Boards behind aggressive bot
+                 protection (CWJobs/Totaljobs) may reset connections regardless.
 """
 
+import asyncio
 import re
 import xml.etree.ElementTree as ET
 from urllib.parse import urljoin
@@ -39,6 +42,7 @@ DEFAULT_SELECTORS = {
 MAX_DESCRIPTION_CHARS = 8000
 REED_API = "https://www.reed.co.uk/api/1.0"
 ADZUNA_API = "https://api.adzuna.com/v1/api/jobs"
+LINKEDIN_GUEST_API = "https://www.linkedin.com/jobs-guest/jobs/api"
 
 
 async def new_context(browser: Browser) -> BrowserContext:
@@ -269,6 +273,85 @@ async def scrape_adzuna(board: dict, app_id: str, app_key: str) -> list[Job]:
     return jobs
 
 
+# ---------- type: linkedin (guest endpoint) ----------
+
+
+def _linkedin_card_to_job(card, name: str) -> Job | None:
+    link_el = card.select_one("a.base-card__full-link, a[href*='/jobs/view/']")
+    href = link_el.get("href", "") if link_el else ""
+    m = re.search(r"/jobs/view/[^?]*?(\d{6,})", href)
+    if not m:
+        return None
+    location = _text(card, ".job-search-card__location")
+    return Job(
+        title=_text(card, ".base-search-card__title, h3") or "Unknown Title",
+        company=_text(card, ".base-search-card__subtitle, h4") or "Direct / Agency",
+        rate=_text(card, ".job-search-card__salary-info") or "Not stated",
+        # canonical URL: the raw href carries per-request tracking params that would break dedupe
+        url=f"https://www.linkedin.com/jobs/view/{m.group(1)}",
+        source=name,
+        snippet=card.get_text(" ", strip=True)[:1500] + (f" | Location: {location}" if location else ""),
+    )
+
+
+async def scrape_linkedin(board: dict) -> list[Job]:
+    """LinkedIn guest search endpoint: HTML cards, 25 per page, no login.
+
+    Unofficial and aggressively rate-limited (especially from datacenter IPs, so
+    expect thinner results on CI runners) — paced politely, stops a query on 429.
+    """
+    name = board.get("name", "linkedin")
+    pages = int(board.get("pages", 1))
+    base_params = {**board.get("params", {})}
+    jobs: list[Job] = []
+    async with httpx.AsyncClient(
+        timeout=30, follow_redirects=True, headers={"User-Agent": USER_AGENT}
+    ) as client:
+        for query in board.get("queries", []):
+            print(f"[scrape] {name} (guest): {query!r}")
+            for page_no in range(pages):
+                params = {**base_params, "keywords": query, "start": page_no * 25}
+                try:
+                    resp = await client.get(f"{LINKEDIN_GUEST_API}/seeMoreJobPostings/search", params=params)
+                    if resp.status_code == 429:
+                        print(f"[scrape] {name} rate-limited (429) — skipping rest of {query!r}")
+                        break
+                    resp.raise_for_status()
+                except httpx.HTTPError as e:
+                    print(f"[scrape] {name} query {query!r} page {page_no} failed: {e}")
+                    break
+
+                soup = BeautifulSoup(resp.text, "html.parser")
+                cards = soup.select("div.base-card") or soup.select("li")
+                page_jobs = [j for j in (_linkedin_card_to_job(c, name) for c in cards) if j]
+                jobs.extend(page_jobs)
+                if not page_jobs:  # empty page = end of results (or a soft block)
+                    break
+                await asyncio.sleep(1.5)  # pace requests to stay under the rate limit
+    print(f"[scrape] {name}: {len(jobs)} cards")
+    return jobs
+
+
+async def _fetch_linkedin_description(job: Job) -> str:
+    """Full description via the guest job-posting endpoint (no login needed)."""
+    m = re.search(r"/jobs/view/(\d+)", job.url)
+    if not m:
+        return ""
+    try:
+        async with httpx.AsyncClient(
+            timeout=30, follow_redirects=True, headers={"User-Agent": USER_AGENT}
+        ) as client:
+            resp = await client.get(f"{LINKEDIN_GUEST_API}/jobPosting/{m.group(1)}")
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            el = soup.select_one(".show-more-less-html__markup, .description__text")
+            text = el.get_text("\n", strip=True) if el else ""
+            return text[:MAX_DESCRIPTION_CHARS]
+    except httpx.HTTPError as e:
+        print(f"[scrape] linkedin detail failed for {job.url}: {e}")
+        return ""
+
+
 # ---------- dispatch ----------
 
 
@@ -291,6 +374,8 @@ async def scrape_all(context: BrowserContext, cfg: Config) -> list[Job]:
                     jobs.extend(await scrape_adzuna(board, cfg.adzuna_app_id, cfg.adzuna_app_key))
                 else:
                     print(f"[scrape] {board.get('name')}: skipped (ADZUNA_APP_ID/ADZUNA_APP_KEY not set)")
+            elif btype == "linkedin":
+                jobs.extend(await scrape_linkedin(board))
             elif btype == "rss":
                 jobs.extend(await scrape_rss(board))
             else:
@@ -309,6 +394,11 @@ async def fetch_description(context: BrowserContext, job: Job, cfg: Config) -> s
     board = _board_for(job, cfg)
     if board.get("type") == "reed" and cfg.reed_api_key:
         return await _fetch_reed_description(job, cfg.reed_api_key)
+    if board.get("type") == "linkedin":
+        text = await _fetch_linkedin_description(job)
+        if text:
+            return text
+        # fall through to Playwright — public postings usually render before the authwall
 
     selectors = {**DEFAULT_SELECTORS, **board.get("selectors", {})}
     page = await context.new_page()

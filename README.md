@@ -49,12 +49,13 @@ cp .env.example .env          # fill in secrets
 
 ### Job sources (`boards` in config.yaml)
 
-| Type     | Board            | Notes                                                                                                                                                                    |
-| -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `reed`   | Reed.co.uk API   | **Primary.** Free key at [reed.co.uk/developers](https://www.reed.co.uk/developers) → `REED_API_KEY`. Clean JSON, no bot detection.                                      |
-| `adzuna` | Adzuna API       | Aggregates many UK boards **including Totaljobs/CWJobs content**. Free key at [developer.adzuna.com](https://developer.adzuna.com) → `ADZUNA_APP_ID` + `ADZUNA_APP_KEY`. |
-| `rss`    | JobServe (et al) | Save a search on jobserve.com, click the RSS icon on the results page, paste the feed URL.                                                                               |
-| `html`   | Anything else    | Playwright scraping. Boards with aggressive bot protection (CWJobs/Totaljobs) reset headless connections (`ERR_HTTP2_PROTOCOL_ERROR`) — prefer the API/RSS types.        |
+| Type       | Board            | Notes                                                                                                                                                                              |
+| ---------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reed`     | Reed.co.uk API   | **Primary.** Free key at [reed.co.uk/developers](https://www.reed.co.uk/developers) → `REED_API_KEY`. Clean JSON, no bot detection.                                                |
+| `adzuna`   | Adzuna API       | Aggregates many UK boards **including Totaljobs/CWJobs content**. Free key at [developer.adzuna.com](https://developer.adzuna.com) → `ADZUNA_APP_ID` + `ADZUNA_APP_KEY`.           |
+| `linkedin` | LinkedIn (guest) | No key needed — uses the public logged-out endpoint. **Unofficial**: rate-limited (thin results from CI IPs) and against LinkedIn's ToS on automated access — keep queries modest. |
+| `rss`      | JobServe (et al) | Save a search on jobserve.com, click the RSS icon on the results page, paste the feed URL.                                                                                         |
+| `html`     | Anything else    | Playwright scraping. Boards with aggressive bot protection (CWJobs/Totaljobs) reset headless connections (`ERR_HTTP2_PROTOCOL_ERROR`) — prefer the API/RSS types.                  |
 
 Example Dataview query for a pipeline dashboard note:
 

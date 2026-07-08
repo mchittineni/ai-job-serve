@@ -118,6 +118,26 @@ boards:
     selectors: # detail pages open via Playwright; Adzuna's own ad pages use adp-body
       description: "section[class*='adp'], [class*='job-description'], [class*='jobDescription'], main"
 
+  # LinkedIn public guest endpoint — no key needed, but UNOFFICIAL and aggressively
+  # rate-limited (thin results likely from CI runner IPs; agent backs off on 429).
+  # Keep the query list short. Filters: f_WT=2 remote, f_JT=C contract,
+  # f_TPR=r604800 posted within the past week.
+  - name: linkedin
+    type: linkedin
+    pages: 1 # 25 cards per page per query
+    queries:
+      - devops engineer
+      - platform engineer
+      - cloud engineer
+      - site reliability engineer
+    params:
+      location: United Kingdom
+      f_WT: 2
+      f_JT: C
+      f_TPR: r604800
+    selectors: # Playwright fallback when the guest detail endpoint is blocked
+      description: ".show-more-less-html__markup, .description__text, main"
+
   # JobServe saved-search RSS feed — reliable, no browser needed for the list.
   # Build your search on jobserve.com, save it, click the RSS icon on the
   # results page, and paste that feed URL here.
