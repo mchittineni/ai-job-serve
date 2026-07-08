@@ -1,0 +1,89 @@
+name: Job Agent
+
+on:
+  schedule:
+    # Every 30 min, 07:00-17:30 UTC, Mon-Fri (GitHub cron is UTC — this covers
+    # 08:00-18:30 UK time during BST). GitHub may delay scheduled runs slightly.
+    - cron: "*/30 7-17 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      apply_mode:
+        description: "Override apply mode for this run"
+        type: choice
+        options: [alert, draft, auto]
+        default: draft
+
+# Never let two runs overlap: a second run would double-apply before the first
+# commits its state back.
+concurrency:
+  group: job-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # the run commits data/ (SQLite state + generated materials) back
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ vars.NOTION_DATABASE_ID }}
+          NOTION_PARENT_PAGE_ID: ${{ vars.NOTION_PARENT_PAGE_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_BCC: ${{ secrets.SMTP_BCC }}
+          # dispatch input > repo variable > safe default
+          APPLY_MODE: ${{ github.event.inputs.apply_mode || vars.APPLY_MODE || 'draft' }}
+        run: python job-connect.py
+
+      # Runners are ephemeral: without this commit, every run would re-alert (or in
+      # auto mode re-APPLY) to jobs already handled. data/ is the agent's memory.
+      - name: Persist agent state
+        if: always()
+        run: |
+          git config user.name "job-agent[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A data
+          if git diff --cached --quiet; then
+            echo "No state changes to commit"
+          else
+            git commit -m "chore(agent): run $(date -u +'%Y-%m-%d %H:%M') UTC [skip ci]"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push
+          fi
+
+      - name: Upload application materials
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: applications-${{ github.run_id }}
+          path: data/applications/
+          if-no-files-found: ignore
+          retention-days: 14
