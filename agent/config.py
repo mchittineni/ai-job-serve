@@ -72,10 +72,6 @@ class Config:
 
     # --- job sources ---
     @property
-    def reed_api_key(self) -> str | None:
-        return os.getenv("REED_API_KEY")
-
-    @property
     def adzuna_app_id(self) -> str | None:
         return os.getenv("ADZUNA_APP_ID")
 
