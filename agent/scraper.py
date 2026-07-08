@@ -1,7 +1,5 @@
-"""Job sources. Five board types, set per-board in config.yaml:
+"""Job sources. Four board types, set per-board in config.yaml:
 
-type: reed     — Reed.co.uk jobseeker API (free key). Most reliable: plain JSON,
-                 no bot detection. Needs REED_API_KEY.
 type: adzuna   — Adzuna aggregator API (free key). Covers many UK boards,
                  including Totaljobs/CWJobs content, as plain JSON.
                  Needs ADZUNA_APP_ID + ADZUNA_APP_KEY.
@@ -40,7 +38,6 @@ DEFAULT_SELECTORS = {
 }
 
 MAX_DESCRIPTION_CHARS = 8000
-REED_API = "https://www.reed.co.uk/api/1.0"
 ADZUNA_API = "https://api.adzuna.com/v1/api/jobs"
 LINKEDIN_GUEST_API = "https://www.linkedin.com/jobs-guest/jobs/api"
 
@@ -152,67 +149,6 @@ async def scrape_rss(board: dict) -> list[Job]:
                 )
     print(f"[scrape] {name}: {len(jobs)} feed items")
     return jobs
-
-
-# ---------- type: reed (API) ----------
-
-
-def _reed_rate(result: dict) -> str:
-    lo, hi = result.get("minimumSalary"), result.get("maximumSalary")
-    cur = result.get("currency") or "GBP"
-    if lo and hi:
-        return f"{lo:,.0f}-{hi:,.0f} {cur}"
-    if lo or hi:
-        return f"{(lo or hi):,.0f} {cur}"
-    return "Not stated"
-
-
-async def scrape_reed(board: dict, api_key: str) -> list[Job]:
-    """Reed jobseeker API: one search per configured query, JSON results."""
-    name = board.get("name", "reed")
-    jobs: list[Job] = []
-    base_params = {"resultsToTake": 100, **board.get("params", {})}
-    async with httpx.AsyncClient(timeout=30, auth=(api_key, "")) as client:
-        for query in board.get("queries", []):
-            print(f"[scrape] {name} (api): {query!r}")
-            try:
-                resp = await client.get(f"{REED_API}/search", params={**base_params, "keywords": query})
-                resp.raise_for_status()
-                results = resp.json().get("results", [])
-            except (httpx.HTTPError, ValueError) as e:
-                print(f"[scrape] {name} query {query!r} failed: {e}")
-                continue
-
-            for r in results:
-                job_id = r.get("jobId")
-                jobs.append(
-                    Job(
-                        title=r.get("jobTitle") or "Unknown Title",
-                        company=r.get("employerName") or "Direct / Agency",
-                        rate=_reed_rate(r),
-                        url=r.get("jobUrl") or f"https://www.reed.co.uk/jobs/{job_id}",
-                        source=name,
-                        snippet=(r.get("jobDescription") or "")[:1500],
-                    )
-                )
-    print(f"[scrape] {name}: {len(jobs)} results")
-    return jobs
-
-
-async def _fetch_reed_description(job: Job, api_key: str) -> str:
-    """Full description via the Reed job-details endpoint (search results are truncated)."""
-    m = re.search(r"/(\d+)/?(?:[?#]|$)", job.url)
-    if not m:
-        return ""
-    try:
-        async with httpx.AsyncClient(timeout=30, auth=(api_key, "")) as client:
-            resp = await client.get(f"{REED_API}/jobs/{m.group(1)}")
-            resp.raise_for_status()
-            html = resp.json().get("jobDescription") or ""
-            return BeautifulSoup(html, "html.parser").get_text("\n", strip=True)[:MAX_DESCRIPTION_CHARS]
-    except (httpx.HTTPError, ValueError) as e:
-        print(f"[scrape] reed detail failed for {job.url}: {e}")
-        return ""
 
 
 # ---------- type: adzuna (API) ----------
@@ -367,12 +303,7 @@ async def scrape_all(context: BrowserContext, cfg: Config) -> list[Job]:
     for board in cfg.boards:
         btype = board.get("type", "html")
         try:
-            if btype == "reed":
-                if cfg.reed_api_key:
-                    jobs.extend(await scrape_reed(board, cfg.reed_api_key))
-                else:
-                    print(f"[scrape] {board.get('name')}: skipped (REED_API_KEY not set)")
-            elif btype == "adzuna":
+            if btype == "adzuna":
                 if cfg.adzuna_app_id and cfg.adzuna_app_key:
                     jobs.extend(await scrape_adzuna(board, cfg.adzuna_app_id, cfg.adzuna_app_key))
                 else:
@@ -393,10 +324,8 @@ async def scrape_all(context: BrowserContext, cfg: Config) -> list[Job]:
 
 
 async def fetch_description(context: BrowserContext, job: Job, cfg: Config) -> str:
-    """Full description for one job — API for Reed, Playwright for everything else."""
+    """Full description for one job — guest API for LinkedIn, Playwright for everything else."""
     board = _board_for(job, cfg)
-    if board.get("type") == "reed" and cfg.reed_api_key:
-        return await _fetch_reed_description(job, cfg.reed_api_key)
     if board.get("type") == "linkedin":
         text = await _fetch_linkedin_description(job)
         if text:
