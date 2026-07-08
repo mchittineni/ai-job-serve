@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile all modules
+        run: python -m compileall -q agent job-connect.py
+
+      - name: Validate config and imports
+        run: |
+          python - <<'EOF'
+          import yaml, pathlib
+
+          cfg = yaml.safe_load(pathlib.Path("config.yaml").read_text())
+          assert cfg.get("boards"), "config.yaml: no boards configured"
+          assert cfg.get("profile", {}).get("name"), "config.yaml: profile.name is empty"
+
+          # import smoke test (no network, no browser)
+          from agent.config import Config
+          from agent.models import Job
+          from agent.evaluator import JobEvaluation
+          from agent.tailor import ApplicationPackage
+          from agent import applier, knowledge, notifier, scraper, tracker
+
+          c = Config()
+          assert c.apply_mode in ("alert", "draft", "auto")
+          resume = pathlib.Path("profile/master-resume.md").read_text()
+          assert len(resume) > 500, "master resume looks empty"
+          print("config, imports, and master resume OK")
+          EOF
