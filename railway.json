@@ -5,8 +5,8 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "python job-connect.py",
-    "restartPolicyType": "ON_FAILURE",
+    "startCommand": "bash start.sh",
+    "restartPolicyType": "NEVER",
     "cronSchedule": "*/30 7-18 * * 1-5"
   }
 }

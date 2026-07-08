@@ -10,5 +10,6 @@ venv/
 # os
 .DS_Store
 
-# NOTE: data/ is intentionally NOT ignored — the GitHub Actions runner commits it
-# back as the agent's persistent memory (dedupe DB + generated materials).
+# agent state (dedupe DB + generated materials): lives on the Railway volume
+# (DATA_DIR=/data) in production, or locally under data/ for dev runs
+data/
