@@ -23,6 +23,7 @@ from agent import applier, notifier, scraper
 from agent.config import Config
 from agent.evaluator import Evaluator
 from agent.knowledge import Knowledge
+from agent.llm import LLMQuotaError
 from agent.notion_tracker import NotionTracker
 from agent.tailor import Tailor
 from agent.tracker import Tracker
@@ -133,7 +134,7 @@ async def run() -> None:
         f"notion={'yes' if notion.enabled else 'no'}"
     )
 
-    run_stats = {"new": 0, "applied": 0, "draft": 0, "alert": 0, "skipped": 0, "error": 0}
+    run_stats = {"new": 0, "applied": 0, "draft": 0, "alert": 0, "skipped": 0, "deferred": 0, "error": 0}
     applications_sent = 0
 
     async with async_playwright() as p:
@@ -148,7 +149,7 @@ async def run() -> None:
             run_stats["new"] = len(jobs)
             print(f"[run] {len(jobs)} new jobs to evaluate")
 
-            for job in jobs:
+            for index, job in enumerate(jobs):
                 try:
                     applications_sent += await process_job(
                         job,
@@ -163,6 +164,14 @@ async def run() -> None:
                         run_stats=run_stats,
                         applications_sent=applications_sent,
                     )
+                except LLMQuotaError as e:
+                    # Gemini quota is gone for this run. Stop WITHOUT recording the
+                    # remaining jobs — they stay unseen and a later run re-evaluates
+                    # them with real quota instead of burning them on the heuristic.
+                    run_stats["deferred"] = len(jobs) - index
+                    print(f"[run] {e}")
+                    print(f"[run] deferring {run_stats['deferred']} remaining jobs to a later run")
+                    break
                 except Exception:
                     run_stats["error"] += 1
                     print(f"[run] error on '{job.title}':\n{traceback.format_exc()}")
