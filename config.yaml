@@ -1,0 +1,113 @@
+# Non-secret configuration. Secrets (API keys, SMTP, webhook) live in environment variables.
+
+search:
+  target_roles:        # role families the agent applies to; anything else is rejected
+    - Cloud Engineer (AWS / Azure / GCP)
+    - DevOps Engineer
+    - DevSecOps Engineer
+    - SecOps / Cloud Security Engineer
+    - Platform Engineer
+    - Site Reliability Engineer (SRE)
+    - FinOps / Cloud Cost Optimisation Engineer
+    - Infrastructure Engineer (cloud-focused)
+  keywords:            # stack anchors used by the heuristic fallback + evaluator context
+    - terraform
+    - databricks
+    - bedrock
+    - vertex
+    - aws
+    - azure
+    - gcp
+    - kubernetes
+    - docker
+    - helm
+    - python
+    - github actions
+    - sre
+    - site reliability
+    - finops
+    - devops
+    - devsecops
+    - secops
+    - cloud security
+    - platform engineer
+    - cloud engineer
+    - mcp
+    - genai
+    - llm
+  requirements:
+    hard:              # any violation -> should_apply = false
+      - Outside IR35 only (UK contracts) — inside IR35 is a dealbreaker
+      - Fully remote only — hybrid or on-site requirements are a dealbreaker
+      - Role must be within the target role families (cloud/devops/devsecops/secops/platform/sre/finops on AWS, Azure, or GCP)
+
+agent:
+  mode: draft          # alert | draft | auto  (env APPLY_MODE overrides)
+  model: gemini-2.5-pro   # or gemini-2.5-flash (faster/cheaper); env GEMINI_MODEL overrides
+  min_score: 70        # tailored materials are only produced at/above this fit score
+  max_applications_per_run: 3
+  max_applications_per_day: 10
+
+profile:
+  name: "Manideep Chittineni"
+  headline: "Cloud, DevOps & AI Engineer — AWS | Azure | GCP | Terraform | Kubernetes | GenAI"
+  email: "manideep.chittineni@hotmail.com"
+  phone: "+44 7410 900764"
+  location: "Gloucester, UK (Remote)"
+  linkedin: "linkedin.com/in/manideepchittineni"
+  website: "github.com/mchittineni"
+  master_resume: profile/master-resume.md   # env RESUME_PATH overrides
+
+notion:
+  # Job pipeline tracking in a Notion database (env NOTION_DATABASE_ID /
+  # NOTION_PARENT_PAGE_ID override; NOTION_API_KEY is env-only).
+  # EITHER point at an existing database (shared with your integration) ...
+  database_id: ""
+  # ... OR give a parent page and the agent creates a "Job Applications"
+  # database there on first run (id cached under data/).
+  parent_page_id: ""
+
+obsidian:
+  # Absolute path to your vault (env OBSIDIAN_VAULT_PATH overrides). Leave empty to
+  # run vault-less: tailoring then uses only the master resume, and application
+  # notes are written to data/applications/notes/ instead.
+  vault_path: ""
+  # Folders inside the vault to mine for career facts. Empty = whole vault
+  # (minus .obsidian/, templates/, and the applications folder below).
+  knowledge_folders: []          # e.g. [Career, Projects, Achievements]
+  applications_folder: Applications
+  write_application_notes: true
+
+boards:
+  - name: cwjobs
+    base_url: https://www.cwjobs.co.uk
+    search_urls:        # one search per target role family — tune freely
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/platform-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/devops-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/cloud-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/site-reliability-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/devsecops-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/cloud-security-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/aws-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/azure-engineer?radius=0
+      - https://www.cwjobs.co.uk/jobs/outside-ir35/remote/finops?radius=0
+    selectors:
+      card: "[data-testid='job-card'], .job-item, article[class*='job']"
+      title: "[data-testid*='title'], .job-title, h2"
+      company: "[data-testid*='company'], .company-name"
+      rate: "[data-testid*='salary'], .salary"
+      link: "a[href*='/job/']"
+      description: "[class*='job-description'], [data-testid='job-ad-details'], main"
+
+  - name: jobserve
+    base_url: https://www.jobserve.com
+    search_urls:
+      # Replace with your saved-search URL (shid) from jobserve.com
+      - https://www.jobserve.com/gb/en/JobSearch.aspx?shid=REPLACE_WITH_YOUR_SAVED_SEARCH
+    selectors:
+      card: ".jobItem, .jobListItem, [id*='jobitem']"
+      title: ".jobResultsTitle, h3, a[class*='title']"
+      company: ".jobResultsComp, [class*='agency']"
+      rate: ".jobResultsSalary, [class*='salary']"
+      link: "a[href*='JobDetail'], a[href*='/job/']"
+      description: "#JobDetail, .jobDetail, main"
