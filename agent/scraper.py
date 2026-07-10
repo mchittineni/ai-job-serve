@@ -154,6 +154,11 @@ async def scrape_rss(board: dict) -> list[Job]:
 # ---------- type: adzuna (API) ----------
 
 
+def _redact(message: str) -> str:
+    """Strip API credentials from URLs echoed inside error messages before logging."""
+    return re.sub(r"(app_(?:id|key))=[^&'\" ]+", r"\1=***", message)
+
+
 def _adzuna_rate(result: dict) -> str:
     lo, hi = result.get("salary_min"), result.get("salary_max")
     if lo and hi:
@@ -179,15 +184,27 @@ async def scrape_adzuna(board: dict, app_id: str, app_key: str) -> list[Job]:
         for query in board.get("queries", []):
             print(f"[scrape] {name} (api): {query!r}")
             for page_no in range(1, pages + 1):
-                try:
-                    resp = await client.get(
-                        f"{ADZUNA_API}/{country}/search/{page_no}",
-                        params={**base_params, "what": query},
-                    )
-                    resp.raise_for_status()
-                    results = resp.json().get("results", [])
-                except (httpx.HTTPError, ValueError) as e:
-                    print(f"[scrape] {name} query {query!r} page {page_no} failed: {e}")
+                # Adzuna 503s/429s under bursts of queries — retry with backoff
+                results = None
+                for attempt in range(1, 4):
+                    try:
+                        resp = await client.get(
+                            f"{ADZUNA_API}/{country}/search/{page_no}",
+                            params={**base_params, "what": query},
+                        )
+                        resp.raise_for_status()
+                        results = resp.json().get("results", [])
+                        break
+                    except (httpx.HTTPError, ValueError) as e:
+                        status = getattr(getattr(e, "response", None), "status_code", None)
+                        if status in (429, 500, 502, 503) and attempt < 3:
+                            delay = 2.0 * attempt
+                            print(f"[scrape] {name} {status} on {query!r}, retry {attempt}/2 in {delay:.0f}s")
+                            await asyncio.sleep(delay)
+                            continue
+                        print(f"[scrape] {name} query {query!r} page {page_no} failed: {_redact(str(e))}")
+                        break
+                if results is None:
                     break
 
                 for r in results:
@@ -208,6 +225,7 @@ async def scrape_adzuna(board: dict, app_id: str, app_key: str) -> list[Job]:
                     )
                 if len(results) < base_params["results_per_page"]:
                     break
+            await asyncio.sleep(1.0)  # pace queries — back-to-back bursts trigger 503/429
     print(f"[scrape] {name}: {len(jobs)} results")
     return jobs
 
@@ -337,7 +355,14 @@ async def fetch_description(context: BrowserContext, job: Job, cfg: Config) -> s
     try:
         await page.goto(job.url, wait_until="domcontentloaded", timeout=45000)
         await page.wait_for_timeout(1500)
-        soup = BeautifulSoup(await page.content(), "html.parser")
+        try:
+            html = await page.content()
+        except Exception:
+            # redirect chains (e.g. Adzuna land/ad URLs) can still be navigating —
+            # wait for the final page and try once more
+            await page.wait_for_load_state("load", timeout=15000)
+            html = await page.content()
+        soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
         el = soup.select_one(selectors["description"])
